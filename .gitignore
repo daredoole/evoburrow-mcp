@@ -28,3 +28,7 @@ filters/
 profiles/
 adapter-logs/
 *.support.json
+
+# Synthetic, non-user test fixtures are safe to publish.
+!test/fixtures/
+!test/fixtures/*.ady

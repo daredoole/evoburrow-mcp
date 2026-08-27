@@ -8,7 +8,7 @@ test("bundled MCP lists tools and scans the configured workspace", async () => {
   const transport = new StdioClientTransport({
     command: "node",
     args: [resolve("dist/server.mjs")],
-    env: { ...process.env, A1_EVO_HOME: resolve("../..") }
+    env: { ...process.env, A1_EVO_HOME: resolve("test/fixtures") }
   });
   const client = new Client({ name: "a1-evo-test", version: "1.0.0" });
   await client.connect(transport);

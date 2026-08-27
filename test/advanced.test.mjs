@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, writeFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:net";
@@ -36,7 +36,7 @@ test("series parser tolerates corrupt tokens without executing content",()=>{
 test("workspace path guard rejects traversal, wrong extensions, and symlink escapes",async()=>{
   const root=await mkdtemp(join(tmpdir(),"a1-path-")),outside=await mkdtemp(join(tmpdir(),"a1-out-"));
   await writeFile(join(root,"ok.mdat"),"x");await writeFile(join(outside,"secret.mdat"),"x");await mkdir(join(root,"links"));await symlink(join(outside,"secret.mdat"),join(root,"links","escape.mdat"));
-  assert.equal(await advancedInternals.canonicalInside(root,"ok.mdat",[".mdat"]),join(root,"ok.mdat"));
+  assert.equal(await advancedInternals.canonicalInside(root,"ok.mdat",[".mdat"]),await realpath(join(root,"ok.mdat")));
   await assert.rejects(()=>advancedInternals.canonicalInside(root,"../secret.mdat",[".mdat"]));
   await assert.rejects(()=>advancedInternals.canonicalInside(root,"ok.mdat",[".oca"]));
   await assert.rejects(()=>advancedInternals.canonicalInside(root,"links/escape.mdat",[".mdat"]));

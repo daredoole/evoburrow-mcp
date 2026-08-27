@@ -46,7 +46,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
-    "build": "esbuild server.mjs --bundle --platform=node --format=esm --target=node20 --external:node-pty --outfile=dist/server.mjs --banner:js='import { createRequire as __createRequire } from \"node:module\"; const require = __createRequire(import.meta.url);'",
+    "build": "node scripts/build.mjs",
     "start": "node dist/server.mjs",
     "dev": "node server.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
