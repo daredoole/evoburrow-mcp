@@ -7,9 +7,19 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6F8F72.svg)](LICENSE)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-support-FFDD00?logo=buymeacoffee&logoColor=111)](https://buymeacoffee.com/daredoole)
 
-EvoBurrow is an unofficial, cross-platform Model Context Protocol server for inspecting A1 Evo AcoustiX artifacts, operating protected REW workflows, coordinating calibration presets, and making allowlisted Denon/Marantz LAN changes with backups and verification.
+EvoBurrow is an unofficial, cross-platform Model Context Protocol (MCP) server for A1 Evo AcoustiX, Room EQ Wizard (REW), Audyssey calibration artifacts, and Denon/Marantz AVR control. It inspects calibration files, runs protected measurements, coordinates Speaker Preset 1/2, and makes allowlisted LAN changes with backups and verification.
 
 It is not affiliated with or endorsed by OCA, A1 Evo AcoustiX, Audyssey, Denon, or Marantz. A1 Evo remains the owner of measurement, optimization, and calibration transfer.
+
+## Choose the right audio MCP
+
+| Use this project when you need | Use [Audio Calibration MCP](https://github.com/daredoole/audio-calibration-mcp) when you need |
+|---|---|
+| A1 Evo AcoustiX artifact inspection or terminal workflows | General REW measurement and room/speaker analysis |
+| Denon/Marantz AVR status, preset mapping, backup, or guarded LAN control | Car audio, powered speakers, laptop audio, or standalone DSP |
+| Audyssey `.ady`/`.oca` calibration review tied to live AVR state | JamesDSP, CamillaDSP, Equalizer APO, FIR, or listening-test workflows |
+
+The projects are complementary, but intentionally separate: EvoBurrow owns AVR-specific safety and A1 context; Audio Calibration MCP stays hardware-neutral.
 
 ## What lives in the burrow
 
