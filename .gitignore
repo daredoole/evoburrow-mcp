@@ -1,0 +1,30 @@
+# Dependencies and generated output
+node_modules/
+dist/
+coverage/
+.nyc_output/
+*.tgz
+*.log
+
+# Local tools and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.env
+.env.*
+!.env.example
+
+# Private calibration and receiver data
+*.ady
+*.avr
+*.oca
+*.mdat
+measurements/
+backups/
+sessions/
+reports/
+filters/
+profiles/
+adapter-logs/
+*.support.json

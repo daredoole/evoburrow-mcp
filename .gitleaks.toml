@@ -1,0 +1,12 @@
+title = "EvoBurrow secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated and third-party directories are excluded from local scans"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)coverage/'''
+]

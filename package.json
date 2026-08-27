@@ -1,0 +1,70 @@
+{
+  "name": "evoburrow-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Unofficial cross-platform MCP control room for A1 Evo AcoustiX, REW, and Denon/Marantz AVRs",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "a1-evo",
+    "acoustix",
+    "denon",
+    "marantz",
+    "audyssey",
+    "rew",
+    "room-eq-wizard",
+    "audio-calibration",
+    "home-theater",
+    "room-correction"
+  ],
+  "author": "daredoole",
+  "funding": {
+    "type": "buymeacoffee",
+    "url": "https://buymeacoffee.com/daredoole"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daredoole/evoburrow-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/daredoole/evoburrow-mcp/issues"
+  },
+  "homepage": "https://github.com/daredoole/evoburrow-mcp#readme",
+  "files": [
+    ".codex-plugin/",
+    ".mcp.json",
+    "dist/",
+    "knowledge/",
+    "lib/",
+    "skills/",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "build": "esbuild server.mjs --bundle --platform=node --format=esm --target=node20 --external:node-pty --outfile=dist/server.mjs --banner:js='import { createRequire as __createRequire } from \"node:module\"; const require = __createRequire(import.meta.url);'",
+    "start": "node dist/server.mjs",
+    "dev": "node server.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "validate:release": "node scripts/validate-release.mjs",
+    "security:verify": "npm audit --omit=dev --audit-level=high",
+    "pack:check": "npm run build && npm run validate:release && npm pack --dry-run --ignore-scripts",
+    "prepack": "npm run build && npm run validate:release"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@11.5.2",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "node-pty": "1.1.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}

@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused A1 Evo, REW, or Denon/Marantz improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Explain the workflow gap, not only the desired implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and sources
+      description: Link official documentation, reproducible measurements, or clearly labelled community evidence.
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and rollback
+      description: Explain required confirmation, backup, verification, and rollback behavior.
+    validations:
+      required: true

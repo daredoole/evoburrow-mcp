@@ -1,0 +1,42 @@
+{
+  "name": "a1-evo-audio-expert",
+  "version": "1.0.0+codex.20260827043259",
+  "description": "EvoBurrow is an unofficial, cross-platform A1 Evo AcoustiX, REW, and Denon/Marantz calibration companion",
+  "author": {
+    "name": "daredoole",
+    "url": "https://github.com/daredoole"
+  },
+  "homepage": "https://github.com/daredoole/evoburrow-mcp",
+  "repository": "https://github.com/daredoole/evoburrow-mcp",
+  "license": "MIT",
+  "keywords": [
+    "A1 Evo",
+    "AcoustiX",
+    "Denon",
+    "Marantz",
+    "REW",
+    "audio calibration",
+    "MCP"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "EvoBurrow",
+    "shortDescription": "A careful little control room for A1 Evo and your AVR.",
+    "longDescription": "EvoBurrow inspects A1 Evo AcoustiX artifacts, runs protected REW workflows, maps calibration presets, and safely operates supported Denon/Marantz receivers. Unofficial and community-built. Support development at https://buymeacoffee.com/daredoole.",
+    "developerName": "daredoole",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Audit my latest A1 Evo calibration safely.",
+      "Map my A1 calibrations to Denon presets.",
+      "Diagnose my A1 and REW setup without guessing."
+    ],
+    "brandColor": "#6F8F72",
+    "websiteURL": "https://github.com/daredoole/evoburrow-mcp"
+  },
+  "mcpServers": "./.mcp.json"
+}

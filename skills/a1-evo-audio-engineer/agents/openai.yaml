@@ -1,0 +1,11 @@
+interface:
+  display_name: "EvoBurrow Audio Engineer"
+  short_description: "Careful, evidence-based A1 Evo and Denon expertise"
+  default_prompt: "Use $a1-evo-audio-engineer to audit my latest A1 Evo calibration."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "a1-evo-audio-expert"
+      description: "EvoBurrow A1 Evo analysis and guarded Denon/Marantz control tools"
+policy:
+  allow_implicit_invocation: true

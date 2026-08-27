@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "a1-evo-audio-expert": {
+      "command": "node",
+      "args": ["./dist/server.mjs"],
+      "cwd": "."
+    }
+  }
+}

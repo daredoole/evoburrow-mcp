@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {"brand":"Denon","model":"AVR-X1700H","tier":"modern-entry","audyssey":"MultEQ XT","dirac":"not documented","independentSubOutputs":1,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X1800H","tier":"modern-entry","audyssey":"MultEQ XT","dirac":"not documented","independentSubOutputs":1,"protocol":"verified-text-control"},
+    {"brand":"Denon","model":"AVR-X2800H","tier":"modern-mid","audyssey":"MultEQ XT","dirac":"optional/region-firmware-dependent","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X3600H","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X3700H","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X3800H","tier":"modern-advanced","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X4500H","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X4700H","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X4800H","tier":"modern-advanced","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X6500H","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X6700H","tier":"modern-flagship","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X6800H","tier":"modern-flagship","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVR-X8500H/HA","tier":"flagship-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Denon","model":"AVC-A1H","tier":"flagship","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"CINEMA 70s","tier":"modern-entry","audyssey":"MultEQ","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"CINEMA 60","tier":"modern-mid","audyssey":"MultEQ XT","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"CINEMA 50","tier":"modern-advanced","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"CINEMA 40","tier":"modern-advanced","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"CINEMA 30","tier":"flagship","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"SR5015","tier":"common-legacy","audyssey":"MultEQ XT","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"SR6015","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"SR7015","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"SR8015","tier":"common-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"AV7706","tier":"processor-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"AV8805/A","tier":"processor-legacy","audyssey":"MultEQ XT32","dirac":"not documented","independentSubOutputs":2,"protocol":"probe-required"},
+    {"brand":"Marantz","model":"AV 10","tier":"processor-flagship","audyssey":"MultEQ XT32","dirac":"optional","independentSubOutputs":4,"protocol":"probe-required"}
+  ]
+}

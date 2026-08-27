@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible EvoBurrow problem without uploading private calibration data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not paste receiver IPs, credentials, raw calibration files, room coordinates, or full terminal transcripts.
+  - type: input
+    id: version
+    attributes:
+      label: EvoBurrow version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Windows x64, macOS Intel, macOS Apple Silicon, Linux x64, Linux ARM64, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include the smallest redacted reproduction and the expected result.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation already attempted
+      description: List tests, probes, or safe retries already completed.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed private measurements, IP addresses, paths, room data, credentials, and transcripts.
+          required: true
