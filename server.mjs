@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { createConnection } from "node:net";
-import { access, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { spawn } from "node:child_process";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
@@ -38,8 +38,13 @@ function assertHost(host) {
   if (typeof host !== "string" || !/^(?:\d{1,3}\.){3}\d{1,3}$|^[a-z0-9][a-z0-9.-]*$/i.test(host)) {
     throw new Error("host must be an IPv4 address or local DNS hostname");
   }
-  if (host.split(".").every((part) => /^\d+$/.test(part)) && host.split(".").some((part) => Number(part) > 255)) {
-    throw new Error("invalid IPv4 address");
+  const parts = host.split(".");
+  if (parts.every((part) => /^\d+$/.test(part))) {
+    if (parts.some((part) => Number(part) > 255)) throw new Error("invalid IPv4 address");
+    const [a,b] = parts.map(Number);
+    if (!(a === 10 || a === 127 || a === 192 && b === 168 || a === 172 && b >= 16 && b <= 31 || a === 169 && b === 254)) throw new Error("receiver host must use a private or loopback IPv4 address");
+  } else if (host.includes(".") && !host.toLowerCase().endsWith(".local")) {
+    throw new Error("receiver hostname must be single-label local DNS or end in .local");
   }
   return host;
 }
@@ -51,12 +56,12 @@ async function exists(path) {
 async function resolveHome(home) {
   const candidate = resolve(home || DEFAULT_HOME);
   if (!(await exists(candidate))) throw new Error(`A1 workspace not found: ${candidate}`);
-  return candidate;
+  return realpath(candidate);
 }
 
 async function resolveArtifact(home, file) {
   const root = await resolveHome(home);
-  const path = resolve(root, file);
+  const path = await realpath(resolve(root, file));
   const rel = relative(root, path);
   if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("file must stay inside the A1 workspace");
   const info = await stat(path);
@@ -172,9 +177,34 @@ async function probePort(host, port, timeoutMs) {
 }
 
 function launchCommand(executable, root) {
-  if (process.platform === "win32") return { command: "cmd.exe", args: ["/c", "start", "A1 Evo AcoustiX", executable], options: { cwd: root, detached: true, windowsHide: false } };
+  if (process.platform === "win32") return { command: executable, args: [], options: { cwd: root, detached: true, windowsHide: false } };
   if (process.platform === "darwin") return { command: "open", args: ["-a", "Terminal", executable], options: { cwd: root, detached: true } };
-  return { command: process.env.TERMINAL || "x-terminal-emulator", args: ["-e", executable], options: { cwd: root, detached: true } };
+  return { command: "x-terminal-emulator", args: ["-e", executable], options: { cwd: root, detached: true } };
+}
+
+function a1ExecutableNames() {
+  if (process.platform === "win32") return ["a1-evo-acoustix-win-x64.exe", "a1-evo-acoustix.exe"];
+  if (process.platform === "darwin") return process.arch === "arm64" ? ["a1-evo-acoustix-macos-arm64"] : ["a1-evo-acoustix-macos-x64", "a1-evo-acoustix-macos"];
+  return ["a1-evo-acoustix-linux-x64"];
+}
+
+async function trustedA1Executable(root, supplied) {
+  const allowed = a1ExecutableNames();
+  if (supplied && !allowed.includes(basename(supplied))) throw new Error(`Executable must be a platform A1 binary: ${allowed.join(", ")}`);
+  for (const candidate of supplied ? [supplied] : allowed) {
+    try {
+      const path = await realpath(resolve(root, candidate));
+      const rel = relative(root, path);
+      if (!rel || rel.startsWith("..") || isAbsolute(rel) || !allowed.includes(basename(path))) throw new Error("A1 executable must stay inside the workspace");
+      const info = await stat(path);
+      if (!info.isFile()) throw new Error("A1 executable is not a regular file");
+      await access(path, fsConstants.X_OK);
+      return path;
+    } catch (error) {
+      if (supplied) throw error;
+    }
+  }
+  throw new Error(`No trusted A1 executable found; checked ${allowed.join(", ")}`);
 }
 
 function denonCommand(action, value) {
@@ -244,7 +274,7 @@ function designCurve({ bassBoostDb, bassShelfEndHz, trebleTiltDb, points }) {
   return output.sort((a,b)=>a.frequencyHz-b.frequencyHz);
 }
 
-export const internals = { numericStats, bandLevels, parseCurve, curveAt, assertHost, denonCommand, chooseCrossover, filterSpectralGain, speakerAngles, placementTarget, designCurve, tcpExchange };
+export const internals = { numericStats, bandLevels, parseCurve, curveAt, assertHost, denonCommand, chooseCrossover, filterSpectralGain, speakerAngles, placementTarget, designCurve, tcpExchange, resolveHome, resolveArtifact, trustedA1Executable };
 
 const server = new McpServer({ name: "evoburrow", version: "1.0.0" });
 
@@ -388,9 +418,7 @@ server.tool("a1_launch", "Launch the interactive A1 Evo application in a separat
   try {
     if (!confirm) return result({ launched: false, requiresConfirmation: true, message: "Set confirm=true after verifying REW, AVR configuration, microphone, speaker wiring, and room readiness." });
     const root = await resolveHome(home);
-    const candidates = executable ? [executable] : process.platform === "win32" ? ["a1-evo-acoustix-win-x64.exe", "a1-evo-acoustix.exe"] : process.platform === "darwin" ? ["a1-evo-acoustix-macos", "a1-evo-acoustix-macos-arm64"] : ["a1-evo-acoustix-linux-x64"];
-    let path = null; for (const candidate of candidates) { const p=resolve(root,candidate); if (await exists(p)) { path=p; break; } }
-    if (!path) throw new Error(`No A1 executable found for ${process.platform}; checked ${candidates.join(", ")}`);
+    const path = await trustedA1Executable(root, executable);
     const spec = launchCommand(path, root), child = spawn(spec.command, spec.args, { ...spec.options, stdio: "ignore" }); child.unref();
     return result({ launched: true, executable: path, launcher: spec.command, pid: child.pid, note: "A1 Evo is interactive and owns its workflow; the MCP does not inject menu input." });
   } catch (error) { return result({ error: error.message }, true); }
@@ -408,10 +436,8 @@ server.tool("denon_status", "Query power, volume, mute, input, and sound mode ov
 
 server.tool("denon_control", "Send one allowlisted Denon/Marantz command. State-changing commands require confirm=true.", { host: z.string(), action: z.enum(["power_on","power_standby","mute_on","mute_off","volume_db","input"]), value: z.union([z.string(),z.number()]).optional(), confirm: z.boolean().default(false), port: z.number().int().min(1).max(65535).default(23) }, async ({ host, action, value, confirm, port }) => {
   try {
-    if (!confirm) return result({ sent: false, requiresConfirmation: true, requested: { host, action, value }, warning: "This changes live receiver state. Reissue with confirm=true." });
     const command = denonCommand(action, value);
-    const responses = await tcpExchange(host,[command],port,2500);
-    return result({ sent: true, host, port, action, value, command, responses });
+    return result({ sent: false, deprecated: true, requiresPlan: true, requested: { host, port, action, value, command }, confirmedButNotExecuted: confirm === true, warning: "Direct receiver mutation is disabled. Use denon_snapshot, denon_propose_changes, review its baseline-bound diff, then denon_execute_plan." }, true);
   } catch (error) { return result({ error: error.message }, true); }
 });
 

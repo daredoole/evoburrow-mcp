@@ -62,4 +62,5 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm rebuild esbuild node-pty
       - run: npm run security:verify
+      - run: npm run coverage
       - run: npm run pack:check

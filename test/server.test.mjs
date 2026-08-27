@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { chmod, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { internals } from "../server.mjs";
 
 test("numericStats finds peak and RMS", () => {
@@ -18,7 +21,10 @@ test("target curve parser and log interpolation", () => {
 test("host validation rejects shell-like and invalid addresses", () => {
   assert.throws(() => internals.assertHost("127.0.0.1;rm"));
   assert.throws(() => internals.assertHost("999.1.1.1"));
-  assert.equal(internals.assertHost("192.0.2.120"), "192.0.2.120");
+  assert.equal(internals.assertHost("192.168.1.120"), "192.168.1.120");
+  assert.equal(internals.assertHost("denon-avr.local"), "denon-avr.local");
+  assert.throws(() => internals.assertHost("192.0.2.120"));
+  assert.throws(() => internals.assertHost("example.com"));
 });
 
 test("band analysis returns finite relative levels", () => {
@@ -65,4 +71,15 @@ test("FIR headroom estimate is finite", () => {
   const filter = Array(512).fill(0); filter[0]=1; filter[1]=0.25;
   const gain = internals.filterSpectralGain(filter,48000);
   assert.ok(Number.isFinite(gain.relativePeakGainDb));
+});
+
+test("server workspace and A1 launch resolution reject symlink and arbitrary executable escapes",async()=>{
+  const root=await mkdtemp(join(tmpdir(),"evoburrow-server-")),outside=await mkdtemp(join(tmpdir(),"evoburrow-server-out-"));
+  await writeFile(join(outside,"secret.oca"),"secret"); await symlink(join(outside,"secret.oca"),join(root,"escape.oca"));
+  await assert.rejects(()=>internals.resolveArtifact(root,"escape.oca"),/inside the A1 workspace/);
+  if(process.platform==="linux") {
+    const executable=join(root,"a1-evo-acoustix-linux-x64"); await writeFile(executable,"#!/bin/sh\nexit 0\n"); await chmod(executable,0o755);
+    assert.equal(await internals.trustedA1Executable(root),executable);
+    await assert.rejects(()=>internals.trustedA1Executable(root,"/bin/sh"),/platform A1 binary/);
+  }
 });
