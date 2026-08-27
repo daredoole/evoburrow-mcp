@@ -4,7 +4,8 @@ import { mkdtemp, mkdir, realpath, writeFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:net";
-import { advancedInternals, decodeDenonLine } from "../advanced.mjs";
+import { z } from "zod";
+import { advancedInternals, decodeDenonLine, registerAdvancedTools } from "../advanced.mjs";
 import { internals } from "../server.mjs";
 
 test("X1800H protocol responses decode into readable fields",()=>{
@@ -45,7 +46,7 @@ test("workspace path guard rejects traversal, wrong extensions, and symlink esca
 test("confirmation tokens bind the complete target and change set",()=>{
   const a=advancedInternals.token({host:"192.0.2.11",changes:{mute:true},commands:["MUON"]});
   const b=advancedInternals.token({host:"192.0.2.11",changes:{mute:false},commands:["MUOFF"]});
-  assert.notEqual(a,b);assert.equal(a.length,20);
+  assert.notEqual(a,b);assert.equal(a.length,64);
 });
 
 test("REW post-measurement plans are tamper evident",()=>{
@@ -64,6 +65,7 @@ test("REW Denon volume encoder enforces safe protocol range",()=>{
 test("REW protection mapper enables clipping and SPL guards",()=>{
   const x=advancedInternals.safeProtection({abortOnClipping:false,abortOnExcessSpl:false,maxSpl:110},95);
   assert.equal(x.clippingGuard,true);
+  assert.equal(x.splGuard,true);
   assert.equal(x.options.abortOnClipping,true);
   assert.equal(x.options.abortOnExcessSpl,true);
   assert.equal(x.options.maxSpl,95);
@@ -85,4 +87,53 @@ test("fake Denon protocol handles replies and timeout/reconnect",async()=>{
   const sockets=new Set(),silent=createServer(socket=>{sockets.add(socket);socket.on("close",()=>sockets.delete(socket))});await new Promise(r=>silent.listen(0,"127.0.0.1",r));
   const started=Date.now(),timed=await internals.tcpExchange("127.0.0.1",["PW?"],silent.address().port,100);
   assert.deepEqual(timed,[]);assert.ok(Date.now()-started<1000);for(const socket of sockets)socket.destroy();await new Promise(r=>silent.close(r));
+});
+
+test("advanced MCP callbacks exercise safe inventory, Denon transaction, scoring, and A/B paths", async () => {
+  const home = await mkdtemp(join(tmpdir(), "evo-advanced-tools-"));
+  const handlers = new Map();
+  const server = { tool(name, _description, _schema, handler) { handlers.set(name, handler); } };
+  const result = value => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
+  const decode = response => JSON.parse(response.content[0].text);
+  let state = { power: "ON", mute: false, input: "BD", masterVolume: -20 };
+  const tcpExchange = async (_host, commands) => commands.flatMap(command => {
+    if (command === "PW?") return [`PW${state.power}`];
+    if (command === "MU?") return [`MU${state.mute ? "ON" : "OFF"}`];
+    if (command === "SI?") return [`SI${state.input}`];
+    if (command === "MV?") return [advancedInternals.denonVolume(state.masterVolume)];
+    if (command.startsWith("PW")) state.power = command.slice(2);
+    if (command.startsWith("MU")) state.mute = command.slice(2) === "ON";
+    if (command.startsWith("SI")) state.input = command.slice(2);
+    if (command.startsWith("MV") && command !== "MV?") state.masterVolume = decodeDenonLine(command).relativeDb;
+    return [];
+  });
+  registerAdvancedTools(server, {
+    z,
+    result,
+    resolveHome: async () => realpath(home),
+    resolveArtifact: async (_home, file) => join(home, file),
+    readJsonArtifact: async () => ({ data: {} }),
+    tcpExchange,
+    pluginRoot: join(process.cwd())
+  });
+
+  assert.ok(handlers.size >= 20);
+  assert.equal(decode(await handlers.get("receiver_models")({ model: "X1800H" })).count, 1);
+  assert.deepEqual(decode(await handlers.get("speaker_inventory_detect")({ home })).channels, []);
+  const profiles = [{ channel: "FL", manufacturer: "ELAC", model: "Debut 2.0 B5.2" }];
+  assert.equal(decode(await handlers.get("speaker_profile_save")({ profiles, home, confirm: false })).requiresConfirmation, true);
+  assert.equal(decode(await handlers.get("speaker_profile_save")({ profiles, home, confirm: true })).saved, true);
+  assert.equal(decode(await handlers.get("denon_decode")({ lines: ["MV655", "SIBD"] })).decoded.length, 2);
+  const snapshot = decode(await handlers.get("denon_snapshot")({ host: "127.0.0.1", port: 23 }));
+  assert.equal(snapshot.state.masterVolume, -20);
+  const proposed = decode(await handlers.get("denon_propose_changes")({ host: "127.0.0.1", port: 23, changes: { mute: true, volumeDb: -25 } }));
+  assert.match(proposed.warning, /confirm=true/);
+  const executed = decode(await handlers.get("denon_execute_plan")({ plan: proposed.plan, confirm: true, confirmationToken: proposed.confirmationToken }));
+  assert.equal(executed.executed, true);
+  assert.equal(state.mute, true);
+  assert.equal(state.masterVolume, -25);
+  assert.equal(decode(await handlers.get("calibration_report_score")({})).confidence, "low");
+  const ab = decode(await handlers.get("ab_test_plan")({ baseline: { name: "A", preset: "1", volumeDb: -30 }, candidate: { name: "B", preset: "2", volumeDb: -31 }, trials: 8 }));
+  assert.equal(ab.levelOffsetDb, 1);
+  assert.equal(ab.order.length, 8);
 });

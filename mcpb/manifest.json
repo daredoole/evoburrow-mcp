@@ -1,0 +1,21 @@
+{
+  "manifest_version": "0.2",
+  "name": "evoburrow-mcp",
+  "version": "2.0.0-beta.1",
+  "description": "Unofficial guarded A1 Evo AcoustiX, REW, and Denon/Marantz calibration tools.",
+  "author": {
+    "name": "daredoole",
+    "url": "https://github.com/daredoole"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.mjs"],
+      "env": {}
+    }
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/daredoole/evoburrow-mcp"
+}

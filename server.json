@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.daredoole/evoburrow-mcp",
+  "title": "EvoBurrow MCP",
+  "description": "Unofficial guarded A1 Evo AcoustiX, REW, and Denon/Marantz calibration tools.",
+  "repository": {
+    "url": "https://github.com/daredoole/evoburrow-mcp",
+    "source": "github"
+  },
+  "version": "2.0.0-beta.1",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/daredoole/evoburrow-mcp/releases/download/v2.0.0-beta.1/evoburrow-mcp-2.0.0-beta.1.mcpb",
+      "fileSha256": "fb20fc9a2339c1450e2fe5ef83be365fc09fc246aa68506df62737fb551367c9",
+      "transport": { "type": "stdio" }
+    }
+  ]
+}

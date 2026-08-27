@@ -1,34 +1,75 @@
 import os from "node:os";
-import { access, appendFile, mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdir, open, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import { basename, resolve } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { basename, isAbsolute, relative, resolve } from "node:path";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { spawn } from "node-pty";
 
 const ESC = "\u001b";
 const MAIN = { express:0, sub_level:1, measure:2, optimize_default:3, transfer:4, customize:5, replace_config:6, exit:7 };
 export const stripAnsi = s => s.replace(/\x1b\[[0-?]*[ -\/]*[@-~]/g, "").replace(/\r/g, "");
-export const confirmationToken = plan => createHash("sha256").update(JSON.stringify(plan)).digest("hex").slice(0,24);
+export const confirmationToken = plan => createHash("sha256").update(JSON.stringify(plan)).digest("hex");
+const consumedTokens = new Set();
 
-function executableFor(home, supplied) {
-  if (supplied) return resolve(home, supplied);
-  if (process.platform === "win32") return resolve(home, "a1-evo-acoustix-win-x64.exe");
-  if (process.platform === "darwin") return resolve(home, process.arch === "arm64" ? "a1-evo-acoustix-macos-arm64" : "a1-evo-acoustix-macos-x64");
-  return resolve(home, "a1-evo-acoustix-linux-x64");
+function executableNames() {
+  if (process.platform === "win32") return ["a1-evo-acoustix-win-x64.exe", "a1-evo-acoustix.exe"];
+  if (process.platform === "darwin") return process.arch === "arm64" ? ["a1-evo-acoustix-macos-arm64"] : ["a1-evo-acoustix-macos-x64", "a1-evo-acoustix-macos"];
+  return ["a1-evo-acoustix-linux-x64"];
 }
 
-async function artifact(path, extension) {
-  const p=resolve(path); if (!p.toLowerCase().endsWith(extension)) throw new Error(`Expected ${extension} artifact`);
-  const data=await readFile(p); return {path:p,name:basename(p),bytes:data.length,sha256:createHash("sha256").update(data).digest("hex")};
+function inside(root, path, label) {
+  const rel = relative(root, path);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error(`${label} must be a file inside the A1 workspace`);
+}
+
+async function fileIdentity(path) {
+  const canonical = await realpath(path);
+  const info = await stat(canonical);
+  if (!info.isFile()) throw new Error("Expected a regular file");
+  const data = await readFile(canonical);
+  return { path: canonical, name: basename(canonical), bytes: data.length, sha256: createHash("sha256").update(data).digest("hex") };
+}
+
+function equalToken(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+async function executableFor(home, supplied) {
+  const allowed = executableNames();
+  if (supplied && !allowed.includes(basename(supplied))) throw new Error(`Executable must be a platform A1 binary: ${allowed.join(", ")}`);
+  const candidates = supplied ? [supplied] : allowed;
+  for (const candidate of candidates) {
+    try {
+      const identity = await fileIdentity(resolve(home, candidate));
+      inside(home, identity.path, "Executable");
+      if (!allowed.includes(identity.name)) throw new Error("Executable filename is not allowlisted");
+      await access(identity.path, fsConstants.X_OK);
+      return identity;
+    } catch (error) {
+      if (supplied) throw error;
+    }
+  }
+  throw new Error(`No trusted A1 executable found; checked ${allowed.join(", ")}`);
+}
+
+async function artifact(root, path, extension) {
+  const identity=await fileIdentity(resolve(root,path));
+  inside(root,identity.path,"Artifact");
+  if (!identity.path.toLowerCase().endsWith(extension)) throw new Error(`Expected ${extension} artifact`);
+  return identity;
 }
 
 export async function makePlan({home, action, executable, artifactPath, preset, positions, repeats, centeringCheck=false}) {
-  const exe=executableFor(home,executable); await access(exe,fsConstants.X_OK);
-  const plan={version:1,action,home:resolve(home),executable:exe,platform:process.platform,arch:process.arch};
-  const receiver=JSON.parse(await readFile(resolve(home,"receiver_config.avr"),"utf8"));
+  const root=await realpath(resolve(await Promise.resolve(home)));
+  const executableIdentity=await executableFor(root,executable);
+  const receiverIdentity=await fileIdentity(resolve(root,"receiver_config.avr"));
+  inside(root,receiverIdentity.path,"Receiver configuration");
+  const receiver=JSON.parse(await readFile(receiverIdentity.path,"utf8"));
+  const plan={version:2,action,home:root,executable:executableIdentity.path,executableIdentity,receiverConfigIdentity:receiverIdentity,platform:process.platform,arch:process.arch};
   if(!receiver.targetModelName || !receiver.ipAddress) throw new Error("receiver_config.avr is missing targetModelName or ipAddress");
   plan.receiver={model:receiver.targetModelName,ipAddress:receiver.ipAddress};
-  if(action==="transfer"){ if(![1,2].includes(preset)) throw new Error("preset must be 1 or 2"); plan.preset=preset; plan.artifact=await artifact(artifactPath,".oca"); }
+  if(action==="transfer"){ if(![1,2].includes(preset)) throw new Error("preset must be 1 or 2"); plan.preset=preset; plan.artifact=await artifact(root,artifactPath,".oca"); }
   if(action==="measure"){ if(!Number.isInteger(positions)||positions<1||positions>20) throw new Error("positions must be 1..20"); if(!Number.isInteger(repeats)||repeats<1||repeats>9) throw new Error("repeats must be 1..9"); plan.positions=positions; plan.repeats=repeats; plan.centeringCheck=!!centeringCheck; }
   plan.token=confirmationToken(plan); return plan;
 }
@@ -107,9 +148,21 @@ export async function runPlan(plan,{confirm,token,timeoutMs=900000}={}){
   if(confirm!==true) throw new Error("confirm=true is required immediately before launching A1");
   const expected=confirmationToken({...plan,token:undefined});
   // Accept tokens made before token was appended to the plan.
-  if(token!==plan.token || plan.token!==expected) throw new Error("Plan token mismatch; regenerate the plan");
-  const current=JSON.parse(await readFile(resolve(plan.home,"receiver_config.avr"),"utf8"));
+  if(!equalToken(token,plan.token) || !equalToken(plan.token,expected)) throw new Error("Plan token mismatch; regenerate the plan");
+  if(consumedTokens.has(plan.token)) throw new Error("Plan token was already used; regenerate the plan");
+  const root=await realpath(plan.home);
+  const executableIdentity=await fileIdentity(plan.executable);
+  inside(root,executableIdentity.path,"Executable");
+  if(JSON.stringify(executableIdentity)!==JSON.stringify(plan.executableIdentity)) throw new Error("A1 executable changed after planning; regenerate the plan");
+  const receiverIdentity=await fileIdentity(resolve(root,"receiver_config.avr"));
+  if(JSON.stringify(receiverIdentity)!==JSON.stringify(plan.receiverConfigIdentity)) throw new Error("receiver_config.avr changed after planning; regenerate the plan");
+  if(plan.action==="transfer") {
+    const artifactIdentity=await artifact(root,plan.artifact?.path,".oca");
+    if(JSON.stringify(artifactIdentity)!==JSON.stringify(plan.artifact)) throw new Error("OCA artifact changed after planning; regenerate the plan");
+  }
+  const current=JSON.parse(await readFile(receiverIdentity.path,"utf8"));
   if(current.targetModelName!==plan.receiver?.model || current.ipAddress!==plan.receiver?.ipAddress) throw new Error("AVR identity changed after planning; regenerate the plan");
+  consumedTokens.add(plan.token);
   if(plan.action==="transfer") return transfer(plan,timeoutMs);
   if(plan.action==="measure") return measure(plan,timeoutMs);
   throw new Error("Unsupported executable action");
@@ -118,6 +171,6 @@ export async function runPlan(plan,{confirm,token,timeoutMs=900000}={}){
 export function registerA1TerminalTools(server,{z,result,resolveHome}){
   const planSchema={action:z.enum(["transfer","measure"]),executable:z.string().optional(),artifactPath:z.string().optional(),preset:z.number().int().min(1).max(2).optional(),positions:z.number().int().min(1).max(20).default(1),repeats:z.number().int().min(1).max(9).default(3),centeringCheck:z.boolean().default(false)};
   server.tool("a1_terminal_capabilities","Report guarded terminal workflows and platform support.",{},async()=>result({platform:process.platform,arch:process.arch,pty:"node-pty/ConPTY",workflows:Object.keys(MAIN),automated:["transfer","measure"],measurementSafety:"Mic placement prompts are preserved; position changes cannot be physically verified."}));
-  server.tool("a1_terminal_plan","Create a hash-bound plan for an A1 transfer or measurement run.",planSchema,async args=>{try{return result(await makePlan({home:resolveHome(),...args}));}catch(e){return result({error:e.message},true);}});
+  server.tool("a1_terminal_plan","Create a hash-bound plan for an A1 transfer or measurement run.",planSchema,async args=>{try{return result(await makePlan({home:await resolveHome(),...args}));}catch(e){return result({error:e.message},true);}});
   server.tool("a1_terminal_execute","Execute an exact A1 terminal plan. Requires the full plan, its token, and confirm=true.",{plan:z.record(z.any()),token:z.string(),confirm:z.boolean(),timeoutMs:z.number().int().min(30000).max(1800000).default(900000)},async args=>{try{return result(await runPlan(args.plan,args));}catch(e){return result({error:e.message,transcript:e.adapter},true);}});
 }

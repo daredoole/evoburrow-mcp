@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, stat, realpath } from "node:fs/promises";
+import { mkdir, readFile, writeFile, readdir, stat, realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { extname, join, relative, resolve, isAbsolute } from "node:path";
 const REW_BASE = process.env.A1_REW_URL || "http://127.0.0.1:4735";
@@ -64,7 +64,7 @@ function circularDelta(a, b) {
   return (a - b + 540) % 360 - 180;
 }
 function token(payload) {
-  return createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 20);
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 function unsignedPlan(plan) {
   const { confirmationToken, ...unsigned } = plan;
@@ -106,16 +106,21 @@ function denonVolume(db) {
 }
 function safeProtection(current, maxSplDb) {
   const out = { ...current && typeof current === "object" ? current : {} };
-  let clippingGuard = false;
+  let clippingGuard = false, splGuard = false;
   for (const key of Object.keys(out)) {
     if (/clip/i.test(key) && typeof out[key] === "boolean") {
       out[key] = true;
       clippingGuard = true;
     }
-    if (/spl/i.test(key) && /(limit|max)/i.test(key) && typeof out[key] === "number") out[key] = maxSplDb;
-    if (/spl/i.test(key) && /(abort|protect|enable)/i.test(key) && typeof out[key] === "boolean") out[key] = true;
+    if (/spl/i.test(key) && /(limit|max)/i.test(key) && typeof out[key] === "number") { out[key] = maxSplDb; splGuard = true; }
+    if (/spl/i.test(key) && /(abort|protect|enable)/i.test(key) && typeof out[key] === "boolean") { out[key] = true; splGuard = true; }
   }
-  return { options: out, clippingGuard };
+  return { options: out, clippingGuard, splGuard };
+}
+
+function unsafeLevelEvidence(value) {
+  const text = JSON.stringify(value || {}).toLowerCase();
+  return /"(?:clipped|clipping|overload|unsafe|too\s*loud)"\s*:\s*true/.test(text) || /(?:clipping|overload|unsafe|too loud)[^\n]{0,40}(?:detected|failed|abort)/.test(text);
 }
 async function rewAudioSnapshot() {
   const status = await rew("/audio/status"), configuration = await rew("/audio/configuration"), driver = await rew("/audio/driver"), sampleRate = await rew("/audio/samplerate"), inputCal = await rew("/audio/input-cal");
@@ -247,6 +252,7 @@ function scoreCalibration(inputs) {
 }
 function registerAdvancedTools(server, d) {
   const { z, result, resolveHome, resolveArtifact, readJsonArtifact, tcpExchange, pluginRoot } = d;
+  const usedDenonPlans = new Set();
   const avrSequence = async (host, commands, port = 23, timeoutMs = 2500) => {
     const responses = [];
     for (const command of commands) {
@@ -271,6 +277,19 @@ function registerAdvancedTools(server, d) {
     if (changes.mute !== void 0 && state.mute !== changes.mute) failures.push(`mute expected ${changes.mute}, got ${state.mute}`);
     if (failures.length) throw new Error(`AVR verification failed: ${failures.join("; ")}`);
   };
+  const mutableState = (state) => ({
+    power: state.power,
+    mute: state.mute,
+    input: state.input,
+    masterVolume: Number.isFinite(Number(state.masterVolume)) ? Number(state.masterVolume) : null
+  });
+  const stateFingerprint = (state) => token(mutableState(state));
+  const rollbackChanges = (state) => ({
+    ...state.power ? { power: state.power } : {},
+    ...state.input ? { input: state.input } : {},
+    ...Number.isFinite(state.masterVolume) ? { volumeDb: state.masterVolume } : {},
+    ...typeof state.mute === "boolean" ? { mute: state.mute } : {}
+  });
   server.tool("receiver_models", "List explicitly profiled Denon/Marantz models and capability confidence.", { brand: z.enum(["Denon", "Marantz"]).optional(), model: z.string().optional() }, err(async ({ brand, model }) => {
     const all = JSON.parse(await readFile(join(pluginRoot, "knowledge", "receiver-models.json"), "utf8"));
     const models = all.models.filter((x) => (!brand || x.brand === brand) && (!model || x.model.toLowerCase().includes(model.toLowerCase())));
@@ -336,6 +355,7 @@ function registerAdvancedTools(server, d) {
   server.tool("rew_post_measurement_plan", "Build a guarded, level-matched post-calibration sweep plan. It can switch Denon Speaker Presets and REW output channels automatically after the microphone and HDMI path are ready.", { host: z.string(), home: z.string().optional(), avrInput: z.string().regex(/^[A-Z0-9 _-]{1,20}$/).optional(), avrVolumeDb: z.number().min(-60).max(-10).default(-30), startHz: z.number().min(5).max(200).default(10), endHz: z.number().min(1e3).max(24e3).default(2e4), sweepLength: z.string().default("256k"), repetitions: z.number().int().min(1).max(8).default(1), levelDbfs: z.number().min(-40).max(-3).default(-12), maxSplDb: z.number().min(70).max(105).default(95), minSnrDb: z.number().min(5).max(50).default(20), timingReference: z.enum(["None", "Acoustic", "Loopback"]).default("Acoustic"), runs: z.array(z.object({ speakerPreset: z.number().int().min(1).max(2), title: z.string().min(1).max(80), outputChannel: z.string().optional(), notes: z.string().max(500).optional() })).min(1).max(20), saveFile: z.string().regex(/^[A-Za-z0-9._-]+\.mdat$/).default("post-calibration-measurements.mdat") }, err(async (args) => {
     const root = await resolveHome(args.home), audio = await rewAudioSnapshot(), measure = await rewMeasureSnapshot(), measurements = await rew("/measurements"), avr = await tcpExchange(args.host, ["SPPR ?", "PW?", "MV?", "MU?", "SI?", "MS?"], 23, 2500);
     const protection = safeProtection(measure["/measure/protection-options"], args.maxSplDb);
+    if (!protection.clippingGuard || !protection.splGuard) throw new Error("REW did not expose both clipping and maximum-SPL protection; protected sweeps are unavailable");
     const unsigned = { kind: "rew-post-calibration-measurements", createdAt: (/* @__PURE__ */ new Date()).toISOString(), root, savePath: join(root, args.saveFile), request: { ...args, home: void 0 }, baselineMeasurementIds: measurementEntries(measurements).map(([id]) => id), audio, measure, protection, avr };
     return result(planWithToken(unsigned));
   }));
@@ -356,22 +376,21 @@ function registerAdvancedTools(server, d) {
       await rew("/measure/sweep/repetitions", { method: "POST", body: q.repetitions });
       await rew("/measure/level", { method: "POST", body: { value: q.levelDbfs, unit: "dBFS" } });
       await setAndVerifyRewValue("/measure/timing/reference", q.timingReference);
-      if (Object.keys(plan.protection?.options || {}).length) await rew("/measure/protection-options", { method: "POST", body: plan.protection.options });
+      if (!plan.protection?.clippingGuard || !plan.protection?.splGuard) throw new Error("measurement plan lacks mandatory clipping/SPL protection");
+      await rew("/measure/protection-options", { method: "POST", body: plan.protection.options });
       const advertised = plan.measure?.["/measure/commands"] || [], check = Array.isArray(advertised) ? advertised.find((x) => /check.*level/i.test(String(x))) : null;
-      if (check) {
-        try {
-          await rew("/measure/command", { method: "POST", body: { command: check }, timeoutMs: 6e4 });
-        } catch (error) {
-          if (!/REW 501:[\s\S]*not implemented/i.test(error.message)) throw error;
-        }
-      }
+      if (!check) throw new Error("REW did not advertise a pre-sweep level-check command");
+      const levelCheck = await rew("/measure/command", { method: "POST", body: { command: check }, timeoutMs: 6e4 });
+      const levelEvidence = await rew("/input-levels/last-levels").catch(() => levelCheck);
+      if (unsafeLevelEvidence(levelCheck) || unsafeLevelEvidence(levelEvidence)) throw new Error("REW pre-sweep level check reported clipping, overload, or unsafe level");
       for (const run of q.runs) {
         await avrSequence(q.host, [`SPPR ${run.speakerPreset}`]);
         const verify = await tcpExchange(q.host, ["SPPR ?"], 23, 2e3);
         if (!matchesSpeakerPreset(verify, run.speakerPreset)) throw new Error(`Speaker Preset ${run.speakerPreset} verification failed`);
         if (run.outputChannel) {
           const family = String(plan.audio.family), base = `/audio/${family}`;
-          if (family === "java") await rew(`${base}/output-channel`, { method: "POST", body: { channel: run.outputChannel } });
+          if (family !== "java") throw new Error("Automatic output-channel selection is unavailable for ASIO; configure and verify the ASIO channel manually before planning");
+          await rew(`${base}/output-channel`, { method: "POST", body: { channel: run.outputChannel } });
         }
         if (run.outputChannel === "L+R") await setAndVerifyRewValue("/measure/sequential-channels", { channels: [] });
         await setAndVerifyRewValue("/measure/timing/reference", q.timingReference);
@@ -380,25 +399,25 @@ function registerAdvancedTools(server, d) {
         const response = await rew("/measure/command", { method: "POST", body: { command: "SPL" }, timeoutMs: 18e4 });
         const [id, summary] = await waitForSingleNewMeasurement(before);
         await rew(`/measurements/${encodeURIComponent(id)}`, { method: "PUT", body: { title: run.title, notes: `Speaker Preset ${run.speakerPreset}; ${run.notes || "post-calibration verification"}` } });
-        if (Number.isFinite(summary?.signalToNoisedB) && summary.signalToNoisedB < q.minSnrDb) throw new Error(`REW measurement SNR ${summary.signalToNoisedB.toFixed(1)} dB is below the ${q.minSnrDb} dB minimum`);
+        if (!Number.isFinite(summary?.signalToNoisedB)) throw new Error("REW measurement did not provide finite SNR evidence; the trace cannot pass the protected workflow");
+        if (summary.signalToNoisedB < q.minSnrDb) throw new Error(`REW measurement SNR ${summary.signalToNoisedB.toFixed(1)} dB is below the ${q.minSnrDb} dB minimum`);
         created.push({ id, title: run.title, speakerPreset: run.speakerPreset, outputChannel: run.outputChannel || null, response, summary });
       }
       await rew("/measurements/command", { method: "POST", body: { command: "Save all", parameters: [plan.savePath, "Automated level-matched Denon Speaker Preset post-calibration measurements"] }, timeoutMs: 12e4 });
       return result({ completed: true, created, savePath: plan.savePath, restoredSpeakerPreset: initialPreset, protectionApplied: plan.protection });
     } finally {
       const restore = { power: "on", ...initialState.input ? { input: initialState.input } : {}, ...Number.isFinite(initialState.masterVolume) ? { volumeDb: initialState.masterVolume } : {}, ...typeof initialState.mute === "boolean" ? { mute: initialState.mute } : {} };
-      await avrSequence(q.host, [`SPPR ${initialPreset}`, ...avrCommands(restore)]).catch(() => {
-      });
-      if (initialState.power === "standby") await avrSequence(q.host, ["PWSTANDBY"]).catch(() => {
-      });
+      const restorationErrors = [];
+      await avrSequence(q.host, [`SPPR ${initialPreset}`, ...avrCommands(restore)]).catch((error) => restorationErrors.push(`AVR state: ${error.message}`));
+      if (initialState.power === "standby") await avrSequence(q.host, ["PWSTANDBY"]).catch((error) => restorationErrors.push(`AVR standby: ${error.message}`));
       const initialTimingReference = plan.measure?.["/measure/timing/reference"];
-      if (typeof initialTimingReference === "string") await rew("/measure/timing/reference", { method: "POST", body: initialTimingReference }).catch(() => {
-      });
+      if (typeof initialTimingReference === "string") await rew("/measure/timing/reference", { method: "POST", body: initialTimingReference }).catch((error) => restorationErrors.push(`timing reference: ${error.message}`));
       const initialSequentialChannels = plan.measure?.["/measure/sequential-channels"];
-      if (initialSequentialChannels && typeof initialSequentialChannels === "object") await rew("/measure/sequential-channels", { method: "POST", body: initialSequentialChannels }).catch(() => {
-      });
-      await rew("/application/blocking", { method: "POST", body: false }).catch(() => {
-      });
+      if (initialSequentialChannels && typeof initialSequentialChannels === "object") await rew("/measure/sequential-channels", { method: "POST", body: initialSequentialChannels }).catch((error) => restorationErrors.push(`sequential channels: ${error.message}`));
+      await rew("/application/blocking", { method: "POST", body: false }).catch((error) => restorationErrors.push(`blocking mode: ${error.message}`));
+      const restoredPreset = await tcpExchange(q.host, ["SPPR ?"], 23, 2500).catch((error) => { restorationErrors.push(`preset verification: ${error.message}`); return []; });
+      if (!matchesSpeakerPreset(restoredPreset, initialPreset)) restorationErrors.push("speaker preset verification did not match baseline");
+      if (restorationErrors.length) throw new Error(`Post-measurement restoration failed: ${restorationErrors.join("; ")}`);
     }
   }));
   server.tool("rew_measurement_cancel", "Cancel a REW measurement currently in progress. This does not change AVR calibration data.", { confirm: z.boolean().default(false) }, err(async ({ confirm }) => {
@@ -477,17 +496,40 @@ function registerAdvancedTools(server, d) {
     }
     return result(snap);
   }));
-  server.tool("denon_propose_changes", "Create a deterministic AVR change plan and confirmation token; does not write.", { host: z.string(), changes: z.object({ power: z.enum(["on", "standby"]).optional(), mute: z.boolean().optional(), input: z.string().regex(/^[A-Z0-9 _-]{1,20}$/).optional(), volumeDb: z.number().min(-80).max(18).optional() }) }, err(async ({ host, changes }) => {
-    const commands = avrCommands(changes), plan = { host, changes, commands };
-    return result({ plan, confirmationToken: token(plan), warning: "Review the diff and reissue through denon_execute_plan with confirm=true." });
+  server.tool("denon_propose_changes", "Capture and save a baseline, then create a deterministic AVR diff and confirmation token; does not write to the receiver.", { host: z.string(), home: z.string().optional(), port: z.number().int().min(1).max(65535).default(23), changes: z.object({ power: z.enum(["on", "standby"]).optional(), mute: z.boolean().optional(), input: z.string().regex(/^[A-Z0-9 _-]{1,20}$/).optional(), volumeDb: z.number().min(-80).max(18).optional() }) }, err(async ({ host, home, port, changes }) => {
+    const root = await resolveHome(home), raw = await tcpExchange(host, STATUS_COMMANDS, port, 3500), decoded = structured(raw), baseline = mutableState(decoded.state);
+    const commands = avrCommands(changes);
+    if (!commands.length) throw new Error("At least one receiver change is required");
+    const diff = Object.entries(changes).map(([field, after]) => ({ field, before: field === "volumeDb" ? baseline.masterVolume : baseline[field], after })).filter((x) => x.before !== x.after);
+    if (!diff.length) throw new Error("Requested receiver state already matches the baseline");
+    const backupDir = join(root, "backups"); await mkdir(backupDir, { recursive: true });
+    const snapshotPath = join(backupDir, `denon-before-change-${Date.now()}.json`);
+    const snapshot = { capturedAt: new Date().toISOString(), host, port, raw, decoded };
+    await writeFile(snapshotPath, JSON.stringify(snapshot, null, 2) + "\n");
+    const plan = { kind: "denon-change-plan", version: 2, createdAt: new Date().toISOString(), host, port, changes, commands, diff, baseline, baselineFingerprint: stateFingerprint(decoded.state), snapshotPath };
+    return result({ plan, confirmationToken: token(plan), warning: "Review the baseline-bound diff and execute this exact plan once with confirm=true." });
   }));
-  server.tool("denon_execute_plan", "Apply an allowlisted AVR plan, then query and verify live state.", { host: z.string(), changes: z.object({ power: z.enum(["on", "standby"]).optional(), mute: z.boolean().optional(), input: z.string().regex(/^[A-Z0-9 _-]{1,20}$/).optional(), volumeDb: z.number().min(-80).max(18).optional() }), confirmationToken: z.string(), confirm: z.boolean().default(false), port: z.number().int().min(1).max(65535).default(23) }, err(async ({ host, changes, confirmationToken, confirm, port }) => {
-    const commands = avrCommands(changes), plan = { host, changes, commands };
-    if (!confirm || confirmationToken !== token(plan)) throw new Error("confirmation missing or token does not match the exact plan");
-    await avrSequence(host, commands, port, 3e3);
-    const verified = structured(await tcpExchange(host, STATUS_COMMANDS, port, 3500));
-    verifyAvrChanges(verified.state, changes);
-    return result({ executed: true, plan, verified, verification: "Every requested field was re-queried and matched after sequential execution." });
+  server.tool("denon_execute_plan", "Apply one exact baseline-bound AVR plan, verify every write, and roll back on partial failure.", { plan: z.record(z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, err(async ({ plan, confirmationToken, confirm }) => {
+    if (!confirm || plan.kind !== "denon-change-plan" || confirmationToken !== token(plan)) throw new Error("confirmation missing or token does not match the exact plan");
+    if (usedDenonPlans.has(confirmationToken)) throw new Error("receiver plan was already used; create a new baseline-bound plan");
+    const current = structured(await tcpExchange(plan.host, STATUS_COMMANDS, plan.port, 3500));
+    if (stateFingerprint(current.state) !== plan.baselineFingerprint) throw new Error("receiver state changed after planning; no commands were sent");
+    usedDenonPlans.add(confirmationToken);
+    try {
+      for (const command of plan.commands) await avrSequence(plan.host, [command], plan.port, 3e3);
+      const verified = structured(await tcpExchange(plan.host, STATUS_COMMANDS, plan.port, 3500));
+      verifyAvrChanges(verified.state, plan.changes);
+      return result({ executed: true, plan, verified, rollbackUsed: false, verification: "Every requested field was re-queried and matched after sequential execution." });
+    } catch (error) {
+      let rollbackVerified = false, rollbackError = null;
+      try {
+        const restore = rollbackChanges(plan.baseline);
+        await avrSequence(plan.host, avrCommands(restore), plan.port, 3e3);
+        const afterRollback = structured(await tcpExchange(plan.host, STATUS_COMMANDS, plan.port, 3500));
+        verifyAvrChanges(afterRollback.state, restore); rollbackVerified = true;
+      } catch (restoreError) { rollbackError = restoreError.message; }
+      throw new Error(`Receiver plan failed: ${error.message}; rollback ${rollbackVerified ? "verified" : `failed: ${rollbackError}`}`);
+    }
   }));
   server.tool("calibration_report_score", "Score ADY, OCA, HTML, live REW, and optional AVR evidence with explicit provenance and missing-data confidence.", { home: z.string().optional(), adyFile: z.string().optional(), ocaFile: z.string().optional(), htmlFile: z.string().optional(), avrHost: z.string().optional() }, err(async ({ home, adyFile, ocaFile, htmlFile, avrHost }) => {
     const evidence = {};

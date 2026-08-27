@@ -22,15 +22,21 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci --ignore-scripts
       - run: npm rebuild esbuild node-pty
-      - run: npm test
+      - run: npm run coverage
       - run: npm run validate:release
       - run: npm run security:verify
+      - run: npm run mcpb:build
       - name: Build package tarball
         run: npm pack --ignore-scripts
-      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+      - run: npm sbom --sbom-format cyclonedx > evoburrow-sbom.json
+      - run: sha256sum evoburrow-mcp-*.tgz dist/evoburrow-mcp-*.mcpb evoburrow-sbom.json > SHA256SUMS
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: "*.tgz"
+          subject-path: |
+            evoburrow-mcp-*.tgz
+            dist/evoburrow-mcp-*.mcpb
+            evoburrow-sbom.json
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" ./*.tgz --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+        run: gh release create "$GITHUB_REF_NAME" evoburrow-mcp-*.tgz dist/evoburrow-mcp-*.mcpb evoburrow-sbom.json SHA256SUMS --verify-tag --generate-notes --title "$GITHUB_REF_NAME" --prerelease

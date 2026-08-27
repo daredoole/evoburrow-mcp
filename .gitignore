@@ -1,6 +1,8 @@
 # Dependencies and generated output
 node_modules/
 dist/
+build/
+*.mcpb
 coverage/
 .nyc_output/
 *.tgz

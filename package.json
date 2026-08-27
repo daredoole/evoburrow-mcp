@@ -1,6 +1,6 @@
 {
   "name": "evoburrow-mcp",
-  "version": "1.0.0",
+  "version": "2.0.0-beta.1",
   "type": "module",
   "description": "Unofficial cross-platform MCP control room for A1 Evo AcoustiX, REW, and Denon/Marantz AVRs",
   "keywords": [
@@ -41,6 +41,8 @@
     ".codex-plugin/",
     ".mcp.json",
     "dist/",
+    "mcpb/",
+    "server.json",
     "knowledge/",
     "lib/",
     "skills/",
@@ -56,8 +58,10 @@
     "start": "node dist/server.mjs",
     "dev": "node server.mjs",
     "test": "npm run build && node --test",
+    "coverage": "npm run build && c8 --check-coverage --lines 55 --statements 55 --functions 64 --branches 67 --reporter=text-summary --include=server.mjs --include=advanced.mjs --include=a1-terminal-adapter.mjs --include=lib/*.mjs --exclude=dist/** node --test",
     "validate:release": "node scripts/validate-release.mjs",
-    "security:verify": "npm audit --omit=dev --audit-level=high",
+    "security:verify": "npm audit --audit-level=moderate && npm audit signatures",
+    "mcpb:build": "npm run build && node scripts/build-mcpb.mjs",
     "pack:check": "npm run build && npm run validate:release && npm pack --dry-run --ignore-scripts",
     "prepack": "npm run build && npm run validate:release"
   },
@@ -71,6 +75,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "c8": "12.0.0",
     "esbuild": "0.25.12"
   }
 }
