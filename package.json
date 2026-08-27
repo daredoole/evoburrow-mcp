@@ -49,7 +49,7 @@
     "build": "node scripts/build.mjs",
     "start": "node dist/server.mjs",
     "dev": "node server.mjs",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npm run build && node --test",
     "validate:release": "node scripts/validate-release.mjs",
     "security:verify": "npm audit --omit=dev --audit-level=high",
     "pack:check": "npm run build && npm run validate:release && npm pack --dry-run --ignore-scripts",
