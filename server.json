@@ -12,7 +12,7 @@
     {
       "registryType": "mcpb",
       "identifier": "https://github.com/daredoole/evoburrow-mcp/releases/download/v2.0.0-beta.1/evoburrow-mcp-2.0.0-beta.1.mcpb",
-      "fileSha256": "fb20fc9a2339c1450e2fe5ef83be365fc09fc246aa68506df62737fb551367c9",
+      "fileSha256": "6c4315411daab1c1a915fc829ea79976a53085b92011114d332d500b7f4eab58",
       "transport": { "type": "stdio" }
     }
   ]
