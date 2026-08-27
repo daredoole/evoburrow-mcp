@@ -15,7 +15,13 @@
     "room-eq-wizard",
     "audio-calibration",
     "home-theater",
-    "room-correction"
+    "home-cinema",
+    "room-correction",
+    "speaker-calibration",
+    "subwoofer-integration",
+    "av-receiver",
+    "denon-avr",
+    "marantz-avr"
   ],
   "author": "daredoole",
   "funding": {

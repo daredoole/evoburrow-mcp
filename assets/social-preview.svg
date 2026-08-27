@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">EvoBurrow MCP</title>
+  <desc id="desc">A bunny listening from a burrow beside a waveform, with A1 Evo AcoustiX, REW, and Denon AVR calibration text.</desc>
+  <rect width="1280" height="640" rx="36" fill="#f5efe3"/>
+  <circle cx="190" cy="320" r="126" fill="none" stroke="#c85b32" stroke-width="18"/>
+  <circle cx="190" cy="320" r="88" fill="#24342f"/>
+  <path d="M139 271c-29-73-2-113 27-40M241 271c29-73 2-113-27-40" fill="none" stroke="#f5efe3" stroke-width="20" stroke-linecap="round"/>
+  <path d="M137 321c0-43 24-75 53-75s53 32 53 75-24 76-53 76-53-33-53-76Z" fill="#f5efe3"/>
+  <circle cx="169" cy="311" r="7" fill="#24342f"/><circle cx="211" cy="311" r="7" fill="#24342f"/>
+  <path d="m183 337 7 6 7-6M190 343v13m0 0-13 8m13-8 13 8" fill="none" stroke="#24342f" stroke-width="6" stroke-linecap="round"/>
+  <path d="M46 469h78l18-24 28 52 35-88 35 88 29-52 18 24h87" fill="none" stroke="#c85b32" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="390" y="250" fill="#24342f" font-family="DejaVu Sans, sans-serif" font-size="78" font-weight="700">EvoBurrow MCP</text>
+  <text x="394" y="326" fill="#775b4b" font-family="DejaVu Sans, sans-serif" font-size="34">A1 Evo AcoustiX · REW · Audyssey</text>
+  <text x="394" y="378" fill="#775b4b" font-family="DejaVu Sans, sans-serif" font-size="34">Denon &amp; Marantz AVR calibration</text>
+  <rect x="394" y="427" width="560" height="58" rx="29" fill="#c85b32"/>
+  <text x="426" y="467" fill="#fffaf2" font-family="DejaVu Sans, sans-serif" font-size="25" font-weight="700">inspect · protect · verify · remember</text>
+</svg>
