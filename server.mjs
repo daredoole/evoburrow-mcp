@@ -299,7 +299,7 @@ server.tool("rew_launch_plan", "Create a hash-bound plan to start the exact disc
   } catch (error) { return result({ error: error.message }, true); }
 });
 
-server.tool("rew_launch_execute", "Start the exact planned REW executable after explicit confirmation and verify its local API.", { plan: z.record(z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, async ({ plan, confirmationToken, confirm }) => {
+server.tool("rew_launch_execute", "Start the exact planned REW executable after explicit confirmation and verify its local API.", { plan: z.record(z.string(), z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, async ({ plan, confirmationToken, confirm }) => {
   try {
     const p = verifyPlan(plan, confirmationToken);
     if (p.kind !== "rew-launch") throw new Error("Wrong plan kind");
