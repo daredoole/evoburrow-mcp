@@ -324,7 +324,7 @@ function registerAdvancedTools(server, d) {
     const unsigned = { kind: "rew-audio-configuration", createdAt: (/* @__PURE__ */ new Date()).toISOString(), before, requested: args };
     return result(planWithToken(unsigned));
   }));
-  server.tool("rew_audio_configure", "Apply an exact REW audio configuration plan. The token and confirm=true are mandatory.", { plan: z.record(z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, err(async ({ plan, confirmationToken, confirm }) => {
+  server.tool("rew_audio_configure", "Apply an exact REW audio configuration plan. The token and confirm=true are mandatory.", { plan: z.record(z.string(), z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, err(async ({ plan, confirmationToken, confirm }) => {
     if (!confirm) throw new Error("confirm=true is required");
     if (confirmationToken !== plan.confirmationToken || token(unsignedPlan(plan)) !== confirmationToken) throw new Error("configuration token mismatch");
     const r = plan.requested, family = r.driver.toLowerCase(), base = `/audio/${family}`;
@@ -359,7 +359,7 @@ function registerAdvancedTools(server, d) {
     const unsigned = { kind: "rew-post-calibration-measurements", createdAt: (/* @__PURE__ */ new Date()).toISOString(), root, savePath: join(root, args.saveFile), request: { ...args, home: void 0 }, baselineMeasurementIds: measurementEntries(measurements).map(([id]) => id), audio, measure, protection, avr };
     return result(planWithToken(unsigned));
   }));
-  server.tool("rew_post_measurement_execute", "Execute an exact post-calibration plan: configure safe sweep settings, switch/verify preset, run and label each sweep, save the MDAT, and restore the original preset.", { plan: z.record(z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, err(async ({ plan, confirmationToken, confirm }) => {
+  server.tool("rew_post_measurement_execute", "Execute an exact post-calibration plan: configure safe sweep settings, switch/verify preset, run and label each sweep, save the MDAT, and restore the original preset.", { plan: z.record(z.string(), z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, err(async ({ plan, confirmationToken, confirm }) => {
     if (!confirm) throw new Error("confirm=true is required immediately before sweeps");
     if (confirmationToken !== plan.confirmationToken || token(unsignedPlan(plan)) !== confirmationToken) throw new Error("measurement plan token mismatch");
     if (plan.kind !== "rew-post-calibration-measurements") throw new Error("wrong plan kind");
@@ -438,7 +438,7 @@ function registerAdvancedTools(server, d) {
     const response = await rew("/measurements/command", { method: "POST", body: { command: "Load", parameters: [path] }, timeoutMs: 3e4 });
     return result({ loaded: true, path, response });
   }));
-  server.tool("rew_generate_trace", "Generate an allowlisted derived trace in live REW from selected measurements.", { processName: z.enum(["Vector sum", "Vector average", "RMS average", "dB average", "Magn plus phase average", "dB plus phase average", "Arithmetic", "Smooth", "Time align", "Cross corr align"]), measurementIndices: z.array(z.number().int().positive()).min(1).max(30), parameters: z.record(z.union([z.string(), z.number(), z.boolean()])).default({}), confirm: z.boolean().default(false) }, err(async ({ processName, measurementIndices, parameters, confirm }) => {
+  server.tool("rew_generate_trace", "Generate an allowlisted derived trace in live REW from selected measurements.", { processName: z.enum(["Vector sum", "Vector average", "RMS average", "dB average", "Magn plus phase average", "dB plus phase average", "Arithmetic", "Smooth", "Time align", "Cross corr align"]), measurementIndices: z.array(z.number().int().positive()).min(1).max(30), parameters: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}), confirm: z.boolean().default(false) }, err(async ({ processName, measurementIndices, parameters, confirm }) => {
     const proposal = { processName, measurementIndices, parameters };
     if (!confirm) return result({ generated: false, requiresConfirmation: true, proposal });
     const response = await rew("/measurements/process-measurements", { method: "POST", body: proposal, timeoutMs: 3e4 });
@@ -509,7 +509,7 @@ function registerAdvancedTools(server, d) {
     const plan = { kind: "denon-change-plan", version: 2, createdAt: new Date().toISOString(), host, port, changes, commands, diff, baseline, baselineFingerprint: stateFingerprint(decoded.state), snapshotPath };
     return result({ plan, confirmationToken: token(plan), warning: "Review the baseline-bound diff and execute this exact plan once with confirm=true." });
   }));
-  server.tool("denon_execute_plan", "Apply one exact baseline-bound AVR plan, verify every write, and roll back on partial failure.", { plan: z.record(z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, err(async ({ plan, confirmationToken, confirm }) => {
+  server.tool("denon_execute_plan", "Apply one exact baseline-bound AVR plan, verify every write, and roll back on partial failure.", { plan: z.record(z.string(), z.any()), confirmationToken: z.string(), confirm: z.boolean().default(false) }, err(async ({ plan, confirmationToken, confirm }) => {
     if (!confirm || plan.kind !== "denon-change-plan" || confirmationToken !== token(plan)) throw new Error("confirmation missing or token does not match the exact plan");
     if (usedDenonPlans.has(confirmationToken)) throw new Error("receiver plan was already used; create a new baseline-bound plan");
     const current = structured(await tcpExchange(plan.host, STATUS_COMMANDS, plan.port, 3500));

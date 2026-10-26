@@ -18,6 +18,25 @@ test("bundled MCP lists tools and scans the configured workspace", async () => {
     assert.ok(listed.tools.some((tool) => tool.name === "denon_control"));
     assert.ok(listed.tools.some((tool) => tool.name === "a1_measurement_quality"));
     assert.ok(listed.tools.some((tool) => tool.name === "speaker_layout_validate"));
+    // Nonempty records must pass MCP validation and reach each confirmation guard.
+    // These calls deliberately cannot authorize hardware or process changes.
+    for (const name of ["rew_launch_execute", "rew_audio_configure", "rew_post_measurement_execute", "denon_execute_plan", "a1_terminal_execute"]) {
+      const guarded = await client.callTool({ name, arguments: {
+        plan: { kind: "test-only", requested: { driver: "Java" } },
+        confirmationToken: "invalid", token: "invalid", confirm: false
+      } });
+      assert.equal(guarded.isError, true, name);
+      const guardedBody = JSON.parse(guarded.content[0].text);
+      assert.match(guardedBody.error, /confirm|token/i, name);
+    }
+    const trace = await client.callTool({ name: "rew_generate_trace", arguments: {
+      processName: "Smooth", measurementIndices: [1],
+      parameters: { smoothing: "1/6", enabled: false, count: 1 }, confirm: false
+    } });
+    assert.equal(trace.isError, false);
+    const traceBody = JSON.parse(trace.content[0].text);
+    assert.equal(traceBody.requiresConfirmation, true);
+    assert.deepEqual(traceBody.proposal.parameters, { smoothing: "1/6", enabled: false, count: 1 });
     const scanned = await client.callTool({ name: "a1_workspace_scan", arguments: {} });
     const body = JSON.parse(scanned.content[0].text);
     assert.ok(body.files.some((file) => file.name.endsWith(".ady")));
